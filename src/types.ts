@@ -14,10 +14,17 @@ export interface ProviderAccount {
   readOnly: true;
 }
 
+export interface TeamProject {
+  id: string;
+  name: string;
+  team: string;
+  ownerEmail: string;
+}
+
 export interface UsageRecord {
   id: string;
   providerId: ProviderKey;
-  project: string;
+  projectId: string;
   model: string;
   unit: UsageUnit;
   quantity: number;
@@ -29,7 +36,8 @@ export interface UsageRecord {
 export interface BudgetPolicy {
   id: string;
   providerId?: ProviderKey;
-  project?: string;
+  projectId?: string;
+  team?: string;
   monthlyLimitUsd: number;
   warningThresholdPct: number;
   criticalThresholdPct: number;
@@ -60,11 +68,33 @@ export interface CostInsight {
   estimatedMonthlySavingsUsd: number;
 }
 
+export interface ModelComparison {
+  providerId: ProviderKey;
+  providerName: string;
+  model: string;
+  unit: UsageUnit;
+  quantity: number;
+  costUsd: number;
+  unitCostUsd: number;
+}
+
+export interface AnomalyFinding {
+  id: string;
+  scope: string;
+  severity: AlertSeverity;
+  baselineCostUsd: number;
+  observedCostUsd: number;
+  changePct: number;
+  message: string;
+}
+
 export interface CostReport {
   generatedAt: string;
   totalSpendUsd: number;
   providerSpend: ProviderSpend[];
+  modelComparisons: ModelComparison[];
   budgetAlerts: BudgetAlert[];
+  anomalies: AnomalyFinding[];
   insights: CostInsight[];
 }
 

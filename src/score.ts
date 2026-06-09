@@ -1,12 +1,31 @@
-import type { BudgetAlert, BudgetPolicy, CostInsight, CostReport, ProviderAccount, ProviderSpend, UsageRecord } from "./types";
+import type {
+  AnomalyFinding,
+  BudgetAlert,
+  BudgetPolicy,
+  CostInsight,
+  CostReport,
+  ModelComparison,
+  ProviderAccount,
+  ProviderSpend,
+  TeamProject,
+  UsageRecord
+} from "./types";
 import { assertValidDataset } from "./validate";
 
 function roundUsd(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function roundUnitCost(value: number): number {
+  return Math.round(value * 1_000_000_000) / 1_000_000_000;
+}
+
 function sumSpend(records: UsageRecord[]): number {
   return roundUsd(records.reduce((sum, record) => sum + record.costUsd, 0));
+}
+
+function projectFor(projects: TeamProject[], projectId: string): TeamProject | undefined {
+  return projects.find((project) => project.id === projectId);
 }
 
 export function summarizeProviderSpend(providers: ProviderAccount[], usageRecords: UsageRecord[]): ProviderSpend[] {
@@ -23,13 +42,47 @@ export function summarizeProviderSpend(providers: ProviderAccount[], usageRecord
     .sort((left, right) => right.costUsd - left.costUsd);
 }
 
-function recordsForBudget(budget: BudgetPolicy, usageRecords: UsageRecord[]): UsageRecord[] {
+export function compareProviderModels(providers: ProviderAccount[], usageRecords: UsageRecord[]): ModelComparison[] {
+  const providerNames = new Map(providers.map((provider) => [provider.id, provider.displayName]));
+  const grouped = new Map<string, UsageRecord[]>();
+
+  for (const record of usageRecords) {
+    const key = [record.providerId, record.model, record.unit].join("::");
+    grouped.set(key, [...(grouped.get(key) ?? []), record]);
+  }
+
+  return [...grouped.entries()]
+    .map(([key, records]) => {
+      const [providerId, model, unit] = key.split("::") as [ProviderAccount["id"], string, ModelComparison["unit"]];
+      const quantity = records.reduce((sum, record) => sum + record.quantity, 0);
+      const costUsd = sumSpend(records);
+
+      return {
+        providerId,
+        providerName: providerNames.get(providerId) ?? providerId,
+        model,
+        unit,
+        quantity,
+        costUsd,
+        unitCostUsd: roundUnitCost(costUsd / quantity)
+      };
+    })
+    .sort((left, right) => right.costUsd - left.costUsd);
+}
+
+function recordsForBudget(budget: BudgetPolicy, projects: TeamProject[], usageRecords: UsageRecord[]): UsageRecord[] {
   return usageRecords.filter((record) => {
+    const project = projectFor(projects, record.projectId);
+
     if (budget.providerId && record.providerId !== budget.providerId) {
       return false;
     }
 
-    if (budget.project && record.project !== budget.project) {
+    if (budget.projectId && record.projectId !== budget.projectId) {
+      return false;
+    }
+
+    if (budget.team && project?.team !== budget.team) {
       return false;
     }
 
@@ -37,9 +90,13 @@ function recordsForBudget(budget: BudgetPolicy, usageRecords: UsageRecord[]): Us
   });
 }
 
-export function evaluateBudgets(budgets: BudgetPolicy[], usageRecords: UsageRecord[]): BudgetAlert[] {
+function budgetScope(budget: BudgetPolicy): string {
+  return budget.providerId ?? budget.projectId ?? budget.team ?? "all providers";
+}
+
+export function evaluateBudgets(budgets: BudgetPolicy[], projects: TeamProject[], usageRecords: UsageRecord[]): BudgetAlert[] {
   return budgets.flatMap((budget) => {
-    const spendUsd = sumSpend(recordsForBudget(budget, usageRecords));
+    const spendUsd = sumSpend(recordsForBudget(budget, projects, usageRecords));
     const thresholdPct = roundUsd((spendUsd / budget.monthlyLimitUsd) * 100);
 
     if (thresholdPct < budget.warningThresholdPct) {
@@ -47,7 +104,7 @@ export function evaluateBudgets(budgets: BudgetPolicy[], usageRecords: UsageReco
     }
 
     const severity = thresholdPct >= budget.criticalThresholdPct ? "critical" : "warning";
-    const scope = budget.providerId ?? budget.project ?? "all providers";
+    const scope = budgetScope(budget);
 
     return [
       {
@@ -63,13 +120,56 @@ export function evaluateBudgets(budgets: BudgetPolicy[], usageRecords: UsageReco
   });
 }
 
-export function generateInsights(providerSpend: ProviderSpend[], usageRecords: UsageRecord[]): CostInsight[] {
+export function detectAnomalies(projects: TeamProject[], usageRecords: UsageRecord[]): AnomalyFinding[] {
+  const grouped = new Map<string, UsageRecord[]>();
+
+  for (const record of usageRecords) {
+    grouped.set(record.projectId, [...(grouped.get(record.projectId) ?? []), record]);
+  }
+
+  return [...grouped.entries()].flatMap(([projectId, records]) => {
+    if (records.length < 2) {
+      return [];
+    }
+
+    const sorted = [...records].sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt));
+    const observed = sorted[sorted.length - 1];
+    const baselineRecords = sorted.slice(0, -1);
+    const baselineCostUsd = roundUsd(sumSpend(baselineRecords) / baselineRecords.length);
+    const observedCostUsd = observed.costUsd;
+    const changePct = baselineCostUsd > 0 ? roundUsd(((observedCostUsd - baselineCostUsd) / baselineCostUsd) * 100) : 0;
+    const project = projectFor(projects, projectId);
+
+    if (changePct < 25 && observedCostUsd < 1000) {
+      return [];
+    }
+
+    return [
+      {
+        id: `anomaly_${projectId}`,
+        scope: project?.name ?? projectId,
+        severity: changePct >= 50 || observedCostUsd >= 1000 ? "warning" : "info",
+        baselineCostUsd,
+        observedCostUsd,
+        changePct,
+        message: `${project?.name ?? projectId} latest synthetic spend changed ${changePct}% from its prior average`
+      }
+    ];
+  });
+}
+
+export function generateInsights(
+  providerSpend: ProviderSpend[],
+  modelComparisons: ModelComparison[],
+  anomalies: AnomalyFinding[],
+  usageRecords: UsageRecord[]
+): CostInsight[] {
   const insights: CostInsight[] = [];
   const totalSpend = sumSpend(usageRecords);
   const topProvider = providerSpend[0];
   const nonProductionSpend = sumSpend(usageRecords.filter((record) => record.environment !== "production"));
-  const repeatedExpensiveModel = usageRecords.filter((record) => record.model === "large-reasoning-demo");
-  const repeatedExpensiveSpend = sumSpend(repeatedExpensiveModel);
+  const largeModelSpend = sumSpend(usageRecords.filter((record) => record.model === "large-reasoning-demo"));
+  const topModel = modelComparisons[0];
 
   if (topProvider && totalSpend > 0 && topProvider.costUsd / totalSpend >= 0.45) {
     insights.push({
@@ -78,6 +178,16 @@ export function generateInsights(providerSpend: ProviderSpend[], usageRecords: U
       detail: `${topProvider.displayName} represents ${roundUsd((topProvider.costUsd / totalSpend) * 100)}% of synthetic AI spend. Review routing and fallback policies across providers.`,
       impact: "medium",
       estimatedMonthlySavingsUsd: roundUsd(topProvider.costUsd * 0.08)
+    });
+  }
+
+  if (topModel) {
+    insights.push({
+      id: "model-comparison-routing",
+      title: "Provider/model comparison review",
+      detail: `${topModel.providerName} ${topModel.model} is the largest synthetic model/API cost bucket. Compare it with lower-cost routes before expanding usage.`,
+      impact: "medium",
+      estimatedMonthlySavingsUsd: roundUsd(topModel.costUsd * 0.1)
     });
   }
 
@@ -91,13 +201,24 @@ export function generateInsights(providerSpend: ProviderSpend[], usageRecords: U
     });
   }
 
-  if (repeatedExpensiveSpend >= 4000) {
+  if (largeModelSpend >= 4000) {
     insights.push({
       id: "large-model-routing",
       title: "Large-model routing opportunity",
       detail: "Repeated synthetic large-model usage is a candidate for prompt caching, smaller model routing, or batch evaluation before production rollout.",
       impact: "high",
-      estimatedMonthlySavingsUsd: roundUsd(repeatedExpensiveSpend * 0.18)
+      estimatedMonthlySavingsUsd: roundUsd(largeModelSpend * 0.18)
+    });
+  }
+
+  if (anomalies.length > 0) {
+    const anomalySpend = anomalies.reduce((sum, anomaly) => sum + anomaly.observedCostUsd, 0);
+    insights.push({
+      id: "anomaly-review",
+      title: "Anomaly review",
+      detail: `${anomalies.length} synthetic spend anomaly finding(s) should be reviewed before the next budget cycle.`,
+      impact: "medium",
+      estimatedMonthlySavingsUsd: roundUsd(anomalySpend * 0.12)
     });
   }
 
@@ -115,16 +236,25 @@ export function generateInsights(providerSpend: ProviderSpend[], usageRecords: U
   return insights.sort((left, right) => right.estimatedMonthlySavingsUsd - left.estimatedMonthlySavingsUsd);
 }
 
-export function buildCostReport(providers: ProviderAccount[], usageRecords: UsageRecord[], budgets: BudgetPolicy[]): CostReport {
-  assertValidDataset(providers, usageRecords, budgets);
+export function buildCostReport(
+  providers: ProviderAccount[],
+  projects: TeamProject[],
+  usageRecords: UsageRecord[],
+  budgets: BudgetPolicy[]
+): CostReport {
+  assertValidDataset(providers, projects, usageRecords, budgets);
 
   const providerSpend = summarizeProviderSpend(providers, usageRecords);
+  const modelComparisons = compareProviderModels(providers, usageRecords);
+  const anomalies = detectAnomalies(projects, usageRecords);
 
   return {
     generatedAt: new Date().toISOString(),
     totalSpendUsd: sumSpend(usageRecords),
     providerSpend,
-    budgetAlerts: evaluateBudgets(budgets, usageRecords),
-    insights: generateInsights(providerSpend, usageRecords)
+    modelComparisons,
+    budgetAlerts: evaluateBudgets(budgets, projects, usageRecords),
+    anomalies,
+    insights: generateInsights(providerSpend, modelComparisons, anomalies, usageRecords)
   };
 }

@@ -8,15 +8,19 @@ test("runCli renders a cost table with disclaimer and provider spend", () => {
 
   assert.ok(output.includes(CLEAN_ROOM_DISCLAIMER));
   assert.ok(output.includes("Provider Spend"));
+  assert.ok(output.includes("Provider/Model Comparison"));
   assert.ok(output.includes("OpenAI Demo"));
   assert.ok(output.includes("Budget Alerts"));
+  assert.ok(output.includes("Anomaly Detection"));
 });
 
 test("runCli renders valid JSON for one synthetic provider", () => {
   const output = runCli(["--json", "--provider", "openai-demo"]);
-  const parsed = JSON.parse(output) as { report: { providerSpend: unknown[] } };
+  const parsed = JSON.parse(output) as { report: { providerSpend: unknown[]; modelComparisons: unknown[]; anomalies: unknown[] } };
 
   assert.equal(parsed.report.providerSpend.length, 1);
+  assert.ok(parsed.report.modelComparisons.length > 0);
+  assert.ok(Array.isArray(parsed.report.anomalies));
 });
 
 test("runCli rejects unknown provider ids", () => {

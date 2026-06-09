@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { syntheticBudgets, syntheticProviders, syntheticUsageRecords } from "../src/seed";
+import { syntheticBudgets, syntheticProjects, syntheticProviders, syntheticUsageRecords } from "../src/seed";
 import type { BudgetPolicy, UsageRecord } from "../src/types";
 import { validateBudget, validateDataset, validateUsageRecord } from "../src/validate";
 
 test("bundled synthetic cost-management data is valid", () => {
-  assert.deepEqual(validateDataset(syntheticProviders, syntheticUsageRecords, syntheticBudgets), []);
+  assert.deepEqual(validateDataset(syntheticProviders, syntheticProjects, syntheticUsageRecords, syntheticBudgets), []);
 });
 
 test("validateUsageRecord rejects negative synthetic spend", () => {
@@ -31,4 +31,11 @@ test("validateBudget requires critical threshold above warning threshold", () =>
   const issues = validateBudget(invalid);
 
   assert.ok(issues.some((issue) => issue.path === "budgets[0].criticalThresholdPct"));
+});
+
+test("validateDataset rejects usage records that reference unknown synthetic projects", () => {
+  const invalidRecords: UsageRecord[] = [{ ...syntheticUsageRecords[0], projectId: "project_missing" }];
+  const issues = validateDataset(syntheticProviders, syntheticProjects, invalidRecords, syntheticBudgets);
+
+  assert.ok(issues.some((issue) => issue.path === "usageRecords[0].projectId"));
 });

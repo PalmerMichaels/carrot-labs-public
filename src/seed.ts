@@ -1,41 +1,25 @@
-import type { BudgetPolicy, ProviderAccount, UsageRecord } from "./types";
+import type { BudgetPolicy, ProviderAccount, TeamProject, UsageRecord } from "./types";
 
 export const syntheticProviders: ProviderAccount[] = [
-  {
-    id: "openai-demo",
-    displayName: "OpenAI Demo",
-    accountLabel: "synthetic-prod-workloads",
-    currency: "USD",
-    readOnly: true
-  },
-  {
-    id: "anthropic-demo",
-    displayName: "Anthropic Demo",
-    accountLabel: "synthetic-support-tools",
-    currency: "USD",
-    readOnly: true
-  },
-  {
-    id: "google-demo",
-    displayName: "Google AI Demo",
-    accountLabel: "synthetic-search-lab",
-    currency: "USD",
-    readOnly: true
-  },
-  {
-    id: "mistral-demo",
-    displayName: "Mistral Demo",
-    accountLabel: "synthetic-dev-sandbox",
-    currency: "USD",
-    readOnly: true
-  }
+  { id: "openai-demo", displayName: "OpenAI Demo", accountLabel: "synthetic-prod-workloads", currency: "USD", readOnly: true },
+  { id: "anthropic-demo", displayName: "Anthropic Demo", accountLabel: "synthetic-support-tools", currency: "USD", readOnly: true },
+  { id: "google-demo", displayName: "Google AI Demo", accountLabel: "synthetic-search-lab", currency: "USD", readOnly: true },
+  { id: "mistral-demo", displayName: "Mistral Demo", accountLabel: "synthetic-dev-sandbox", currency: "USD", readOnly: true }
+];
+
+export const syntheticProjects: TeamProject[] = [
+  { id: "project_customer_copilot", name: "Customer Copilot", team: "Revenue Operations", ownerEmail: "revenue-ops@example.invalid" },
+  { id: "project_support_triage", name: "Support Triage", team: "Customer Experience", ownerEmail: "cx@example.invalid" },
+  { id: "project_search_lab", name: "Search Lab", team: "Product Engineering", ownerEmail: "product-eng@example.invalid" },
+  { id: "project_developer_sandbox", name: "Developer Sandbox", team: "Platform Engineering", ownerEmail: "platform@example.invalid" },
+  { id: "project_image_review", name: "Image Review", team: "Trust Tools", ownerEmail: "trust-tools@example.invalid" }
 ];
 
 export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_001",
     providerId: "openai-demo",
-    project: "customer-copilot",
+    projectId: "project_customer_copilot",
     model: "large-reasoning-demo",
     unit: "tokens",
     quantity: 142_000_000,
@@ -46,7 +30,7 @@ export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_002",
     providerId: "openai-demo",
-    project: "customer-copilot",
+    projectId: "project_customer_copilot",
     model: "large-reasoning-demo",
     unit: "tokens",
     quantity: 121_000_000,
@@ -57,7 +41,7 @@ export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_003",
     providerId: "anthropic-demo",
-    project: "support-triage",
+    projectId: "project_support_triage",
     model: "long-context-demo",
     unit: "tokens",
     quantity: 88_000_000,
@@ -68,7 +52,7 @@ export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_004",
     providerId: "google-demo",
-    project: "search-lab",
+    projectId: "project_search_lab",
     model: "fast-routing-demo",
     unit: "requests",
     quantity: 930_000,
@@ -79,7 +63,7 @@ export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_005",
     providerId: "mistral-demo",
-    project: "developer-sandbox",
+    projectId: "project_developer_sandbox",
     model: "small-chat-demo",
     unit: "tokens",
     quantity: 64_000_000,
@@ -90,7 +74,7 @@ export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_006",
     providerId: "openai-demo",
-    project: "image-review",
+    projectId: "project_image_review",
     model: "vision-demo",
     unit: "images",
     quantity: 34_000,
@@ -101,7 +85,7 @@ export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_007",
     providerId: "anthropic-demo",
-    project: "support-triage",
+    projectId: "project_support_triage",
     model: "long-context-demo",
     unit: "tokens",
     quantity: 73_000_000,
@@ -112,7 +96,7 @@ export const syntheticUsageRecords: UsageRecord[] = [
   {
     id: "usage_008",
     providerId: "google-demo",
-    project: "search-lab",
+    projectId: "project_search_lab",
     model: "fast-routing-demo",
     unit: "requests",
     quantity: 710_000,
@@ -123,31 +107,9 @@ export const syntheticUsageRecords: UsageRecord[] = [
 ];
 
 export const syntheticBudgets: BudgetPolicy[] = [
-  {
-    id: "budget_overall_ai",
-    monthlyLimitUsd: 9500,
-    warningThresholdPct: 75,
-    criticalThresholdPct: 90
-  },
-  {
-    id: "budget_openai_demo",
-    providerId: "openai-demo",
-    monthlyLimitUsd: 6200,
-    warningThresholdPct: 70,
-    criticalThresholdPct: 90
-  },
-  {
-    id: "budget_support_triage",
-    project: "support-triage",
-    monthlyLimitUsd: 3000,
-    warningThresholdPct: 80,
-    criticalThresholdPct: 95
-  },
-  {
-    id: "budget_developer_sandbox",
-    project: "developer-sandbox",
-    monthlyLimitUsd: 400,
-    warningThresholdPct: 70,
-    criticalThresholdPct: 90
-  }
+  { id: "budget_overall_ai", monthlyLimitUsd: 9500, warningThresholdPct: 75, criticalThresholdPct: 90 },
+  { id: "budget_openai_demo", providerId: "openai-demo", monthlyLimitUsd: 6200, warningThresholdPct: 70, criticalThresholdPct: 90 },
+  { id: "budget_support_triage", projectId: "project_support_triage", monthlyLimitUsd: 3000, warningThresholdPct: 80, criticalThresholdPct: 95 },
+  { id: "budget_developer_sandbox", projectId: "project_developer_sandbox", monthlyLimitUsd: 400, warningThresholdPct: 70, criticalThresholdPct: 90 },
+  { id: "budget_platform_team", team: "Platform Engineering", monthlyLimitUsd: 350, warningThresholdPct: 75, criticalThresholdPct: 90 }
 ];

@@ -30,6 +30,22 @@ export function renderTable(report: CostReport): string {
       )
     : ["No synthetic cost insights generated."];
 
+  const modelRows = report.modelComparisons.slice(0, 6).map((comparison) =>
+    [
+      pad(comparison.providerName, 18),
+      pad(truncate(comparison.model, 24), 26),
+      pad(comparison.unit, 10),
+      pad(money(comparison.costUsd), 12),
+      comparison.unitCostUsd.toFixed(8)
+    ].join("")
+  );
+
+  const anomalyRows = report.anomalies.length > 0
+    ? report.anomalies.map((anomaly) =>
+        [pad(anomaly.severity, 10), pad(truncate(anomaly.scope, 24), 26), pad(`${anomaly.changePct}%`, 10), anomaly.message].join("")
+      )
+    : ["No synthetic spend anomalies detected."];
+
   return [
     CLEAN_ROOM_DISCLAIMER,
     NON_REGULATED_DISCLAIMER,
@@ -41,10 +57,20 @@ export function renderTable(report: CostReport): string {
     ["------------------  ", "------------  ", "-------"].join(""),
     ...providerRows,
     "",
+    "Provider/Model Comparison",
+    [pad("Provider", 18), pad("Model/API", 26), pad("Unit", 10), pad("Spend", 12), "Unit Cost"].join(""),
+    ["----------------  ", "------------------------  ", "--------  ", "----------  ", "---------"].join(""),
+    ...modelRows,
+    "",
     "Budget Alerts",
     [pad("Severity", 10), pad("Scope", 24), pad("Usage", 10), "Message"].join(""),
     ["--------  ", "----------------------  ", "--------  ", "-------"].join(""),
     ...alertRows,
+    "",
+    "Anomaly Detection",
+    [pad("Severity", 10), pad("Scope", 26), pad("Change", 10), "Message"].join(""),
+    ["--------  ", "------------------------  ", "--------  ", "-------"].join(""),
+    ...anomalyRows,
     "",
     "Cost Recommendations",
     [pad("Impact", 8), pad("Savings", 14), "Recommendation"].join(""),
