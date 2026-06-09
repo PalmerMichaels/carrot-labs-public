@@ -1,0 +1,19 @@
+{
+  "name": "yc-2026-clean-room-ranker",
+  "version": "1.0.0",
+  "description": "Clean-room TypeScript CLI for ranking synthetic YC-style startup outreach records.",
+  "license": "MIT",
+  "bin": {
+    "yc2026-clean-room-ranker": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "start": "node dist/src/cli.js",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "typescript": "^5.8.3"
+  }
+}
