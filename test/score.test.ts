@@ -1,35 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rankApplications, scoreApplication } from "../src/score";
-import { syntheticApplications } from "../src/seed";
+import { buildCostReport, evaluateBudgets, summarizeProviderSpend } from "../src/score";
+import { syntheticBudgets, syntheticProviders, syntheticUsageRecords } from "../src/seed";
 
-test("rankApplications sorts valid synthetic applications by score descending", () => {
-  const ranked = rankApplications(syntheticApplications);
+test("summarizeProviderSpend sorts synthetic providers by spend descending", () => {
+  const spend = summarizeProviderSpend(syntheticProviders, syntheticUsageRecords);
 
-  assert.equal(ranked.length, syntheticApplications.length);
-
-  for (let index = 1; index < ranked.length; index += 1) {
-    assert.ok(ranked[index - 1].score >= ranked[index].score);
+  assert.equal(spend.length, syntheticProviders.length);
+  for (let index = 1; index < spend.length; index += 1) {
+    assert.ok(spend[index - 1].costUsd >= spend[index].costUsd);
   }
 });
 
-test("scoreApplication assigns a priority band to the strongest revenue record", () => {
-  const harborKit = syntheticApplications.find((application) => application.name === "HarborKit");
+test("evaluateBudgets creates warning or critical alerts for exceeded synthetic thresholds", () => {
+  const alerts = evaluateBudgets(syntheticBudgets, syntheticUsageRecords);
 
-  assert.ok(harborKit);
-  const ranked = scoreApplication(harborKit);
-
-  assert.equal(ranked.band, "priority");
-  assert.ok(ranked.score >= 75);
-  assert.ok(ranked.reasons.some((reason) => reason.includes("revenue stage")));
+  assert.ok(alerts.length >= 2);
+  assert.ok(alerts.some((alert) => alert.budgetId === "budget_overall_ai" && alert.severity === "critical"));
+  assert.ok(alerts.some((alert) => alert.scope === "developer-sandbox"));
 });
 
-test("scoreApplication surfaces risks for idea-stage records", () => {
-  const greenRoute = syntheticApplications.find((application) => application.name === "GreenRoute Lab");
+test("buildCostReport includes spend, alerts, and recommendations", () => {
+  const report = buildCostReport(syntheticProviders, syntheticUsageRecords, syntheticBudgets);
 
-  assert.ok(greenRoute);
-  const ranked = scoreApplication(greenRoute);
-
-  assert.equal(ranked.band, "research");
-  assert.ok(ranked.risks.includes("idea-stage record needs customer evidence before prioritization"));
+  assert.ok(report.totalSpendUsd > 0);
+  assert.ok(report.providerSpend.some((provider) => provider.providerId === "openai-demo"));
+  assert.ok(report.budgetAlerts.length > 0);
+  assert.ok(report.insights.some((insight) => insight.id === "large-model-routing"));
 });

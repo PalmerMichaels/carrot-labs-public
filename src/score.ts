@@ -1,131 +1,130 @@
-import type { OutreachBand, RankedApplication, Stage, StartupApplication } from "./types";
-import { assertValidApplications } from "./validate";
+import type { BudgetAlert, BudgetPolicy, CostInsight, CostReport, ProviderAccount, ProviderSpend, UsageRecord } from "./types";
+import { assertValidDataset } from "./validate";
 
-const stageWeights: Record<Stage, number> = {
-  idea: 8,
-  prototype: 18,
-  launched: 28,
-  revenue: 36
-};
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+function roundUsd(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
-function bandForScore(score: number): OutreachBand {
-  if (score >= 75) {
-    return "priority";
-  }
-
-  if (score >= 55) {
-    return "watch";
-  }
-
-  return "research";
+function sumSpend(records: UsageRecord[]): number {
+  return roundUsd(records.reduce((sum, record) => sum + record.costUsd, 0));
 }
 
-function founderScore(application: StartupApplication): number {
-  const totalExperience = application.founders.reduce((sum, founder) => sum + founder.yearsExperience, 0);
-  const roles = new Set(application.founders.map((founder) => founder.role.toLowerCase()));
-
-  return clamp(totalExperience, 0, 16) + clamp((roles.size - 1) * 3, 0, 6);
+export function summarizeProviderSpend(providers: ProviderAccount[], usageRecords: UsageRecord[]): ProviderSpend[] {
+  return providers
+    .map((provider) => {
+      const records = usageRecords.filter((record) => record.providerId === provider.id);
+      return {
+        providerId: provider.id,
+        displayName: provider.displayName,
+        costUsd: sumSpend(records),
+        usageRecords: records.length
+      };
+    })
+    .sort((left, right) => right.costUsd - left.costUsd);
 }
 
-function tractionScore(application: StartupApplication): number {
-  const { monthlyRevenueUsd, activeUsers, growthRatePct, pilots, waitlist } = application.traction;
+function recordsForBudget(budget: BudgetPolicy, usageRecords: UsageRecord[]): UsageRecord[] {
+  return usageRecords.filter((record) => {
+    if (budget.providerId && record.providerId !== budget.providerId) {
+      return false;
+    }
 
-  return (
-    clamp(monthlyRevenueUsd / 1000, 0, 18) +
-    clamp(activeUsers / 75, 0, 12) +
-    clamp(growthRatePct / 3, 0, 12) +
-    clamp(pilots * 1.4, 0, 8) +
-    clamp(waitlist / 30, 0, 6)
-  );
+    if (budget.project && record.project !== budget.project) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
-function focusScore(application: StartupApplication): number {
-  const conciseProblem = application.problem.length <= 140 ? 4 : 2;
-  const conciseCustomer = application.customer.length <= 80 ? 4 : 2;
-  const tagSignal = clamp(application.tags.length * 1.5, 0, 6);
+export function evaluateBudgets(budgets: BudgetPolicy[], usageRecords: UsageRecord[]): BudgetAlert[] {
+  return budgets.flatMap((budget) => {
+    const spendUsd = sumSpend(recordsForBudget(budget, usageRecords));
+    const thresholdPct = roundUsd((spendUsd / budget.monthlyLimitUsd) * 100);
 
-  return conciseProblem + conciseCustomer + tagSignal;
+    if (thresholdPct < budget.warningThresholdPct) {
+      return [];
+    }
+
+    const severity = thresholdPct >= budget.criticalThresholdPct ? "critical" : "warning";
+    const scope = budget.providerId ?? budget.project ?? "all providers";
+
+    return [
+      {
+        budgetId: budget.id,
+        scope,
+        spendUsd,
+        monthlyLimitUsd: budget.monthlyLimitUsd,
+        thresholdPct,
+        severity,
+        message: `${scope} is at ${thresholdPct}% of its synthetic monthly budget`
+      }
+    ];
+  });
 }
 
-function reasonsFor(application: StartupApplication, score: number): string[] {
-  const reasons: string[] = [];
+export function generateInsights(providerSpend: ProviderSpend[], usageRecords: UsageRecord[]): CostInsight[] {
+  const insights: CostInsight[] = [];
+  const totalSpend = sumSpend(usageRecords);
+  const topProvider = providerSpend[0];
+  const nonProductionSpend = sumSpend(usageRecords.filter((record) => record.environment !== "production"));
+  const repeatedExpensiveModel = usageRecords.filter((record) => record.model === "large-reasoning-demo");
+  const repeatedExpensiveSpend = sumSpend(repeatedExpensiveModel);
 
-  if (application.stage === "revenue") {
-    reasons.push(`revenue stage with $${application.traction.monthlyRevenueUsd.toLocaleString("en-US")}/mo synthetic revenue`);
+  if (topProvider && totalSpend > 0 && topProvider.costUsd / totalSpend >= 0.45) {
+    insights.push({
+      id: "provider-concentration",
+      title: "Provider spend concentration",
+      detail: `${topProvider.displayName} represents ${roundUsd((topProvider.costUsd / totalSpend) * 100)}% of synthetic AI spend. Review routing and fallback policies across providers.`,
+      impact: "medium",
+      estimatedMonthlySavingsUsd: roundUsd(topProvider.costUsd * 0.08)
+    });
   }
 
-  if (application.traction.growthRatePct >= 20) {
-    reasons.push(`${application.traction.growthRatePct}% month-over-month synthetic growth`);
+  if (nonProductionSpend >= 1000) {
+    insights.push({
+      id: "non-production-spend",
+      title: "Non-production spend guardrail",
+      detail: `Synthetic staging/development workloads account for $${nonProductionSpend.toLocaleString("en-US")}. Add tighter budgets or scheduled shutdowns for non-production projects.`,
+      impact: "high",
+      estimatedMonthlySavingsUsd: roundUsd(nonProductionSpend * 0.35)
+    });
   }
 
-  if (application.traction.pilots >= 5) {
-    reasons.push(`${application.traction.pilots} synthetic pilots indicate reachable design partners`);
+  if (repeatedExpensiveSpend >= 4000) {
+    insights.push({
+      id: "large-model-routing",
+      title: "Large-model routing opportunity",
+      detail: "Repeated synthetic large-model usage is a candidate for prompt caching, smaller model routing, or batch evaluation before production rollout.",
+      impact: "high",
+      estimatedMonthlySavingsUsd: roundUsd(repeatedExpensiveSpend * 0.18)
+    });
   }
 
-  if (application.founders.length > 1) {
-    reasons.push("multi-founder team with complementary roles");
+  const lowUtilizationProviders = providerSpend.filter((provider) => provider.costUsd > 0 && provider.costUsd < 500);
+  for (const provider of lowUtilizationProviders) {
+    insights.push({
+      id: `low-utilization-${provider.providerId}`,
+      title: "Low-utilization provider review",
+      detail: `${provider.displayName} has low synthetic spend. Confirm whether the account is needed or should have stricter budget caps.`,
+      impact: "low",
+      estimatedMonthlySavingsUsd: roundUsd(provider.costUsd * 0.2)
+    });
   }
 
-  if (score >= 75) {
-    reasons.push("high composite outreach score for a non-decisioning workflow");
-  }
-
-  return reasons.slice(0, 4);
+  return insights.sort((left, right) => right.estimatedMonthlySavingsUsd - left.estimatedMonthlySavingsUsd);
 }
 
-function risksFor(application: StartupApplication): string[] {
-  const risks: string[] = [];
+export function buildCostReport(providers: ProviderAccount[], usageRecords: UsageRecord[], budgets: BudgetPolicy[]): CostReport {
+  assertValidDataset(providers, usageRecords, budgets);
 
-  if (application.stage === "idea") {
-    risks.push("idea-stage record needs customer evidence before prioritization");
-  }
-
-  if (application.traction.monthlyRevenueUsd === 0) {
-    risks.push("no synthetic revenue recorded");
-  }
-
-  if (application.founders.length === 1) {
-    risks.push("single-founder execution capacity should be discussed manually");
-  }
-
-  if (application.traction.activeUsers < 50 && application.traction.pilots < 3) {
-    risks.push("limited synthetic usage signal");
-  }
-
-  return risks;
-}
-
-export function scoreApplication(application: StartupApplication): RankedApplication {
-  const rawScore =
-    stageWeights[application.stage] +
-    tractionScore(application) +
-    founderScore(application) +
-    focusScore(application);
-  const score = Math.round(clamp(rawScore, 0, 100));
+  const providerSpend = summarizeProviderSpend(providers, usageRecords);
 
   return {
-    application,
-    score,
-    band: bandForScore(score),
-    reasons: reasonsFor(application, score),
-    risks: risksFor(application)
+    generatedAt: new Date().toISOString(),
+    totalSpendUsd: sumSpend(usageRecords),
+    providerSpend,
+    budgetAlerts: evaluateBudgets(budgets, usageRecords),
+    insights: generateInsights(providerSpend, usageRecords)
   };
-}
-
-export function rankApplications(applications: StartupApplication[]): RankedApplication[] {
-  assertValidApplications(applications);
-
-  return applications
-    .map(scoreApplication)
-    .sort((left, right) => {
-      if (right.score !== left.score) {
-        return right.score - left.score;
-      }
-
-      return left.application.name.localeCompare(right.application.name);
-    });
 }

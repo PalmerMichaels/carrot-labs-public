@@ -1,23 +1,25 @@
-# YC 2026 Clean-Room Ranker
+# Carrot Labs Clean-Room Cost Manager
 
-A small TypeScript CLI that ranks synthetic YC 2026-style startup applications for outreach planning. It is a clean-room public reimplementation of a generic intake prioritization workflow, not a copy of any proprietary YC, investor, admissions, or third-party product.
+A TypeScript CLI that reimplements Carrot Labs as AI cost management across providers using synthetic data only. It summarizes AI provider spend, evaluates budgets, raises alerts, and produces cost recommendations from transparent heuristics.
 
 ## Clean-Room Disclaimer
 
-This repository uses synthetic seed data only. It does not include real applicants, real founders, private datasets, scraped records, YC internal workflows, YC branding, or proprietary behavior from any public or private software product.
+This repository is a public clean-room demo. It uses synthetic provider accounts, usage records, spend, billing snapshots, and budgets only. It does not use real invoices, credentials, account access, customer data, proprietary provider pricing data, YC private data, Carrot Labs private data, or real provider API mutations.
 
 ## Non-Regulated Disclaimer
 
-This tool is for demonstration and software evaluation only. Do not use it for regulated eligibility, investment, lending, insurance, employment, medical, credit, housing, admissions, or other legally consequential decisions. Scores are deterministic outreach-planning signals over synthetic records, not recommendations to accept, reject, invest in, hire, fund, underwrite, insure, treat, or admit anyone.
+This tool is for demonstration and software evaluation only. Recommendations are synthetic cost-management heuristics, not financial, accounting, procurement, legal, compliance, tax, or investment advice.
 
 ## Features
 
 - Runnable TypeScript CLI.
-- Synthetic YC 2026-style startup application records.
+- Synthetic AI provider, spend, and usage data across multiple providers.
+- Budget policies and alert evaluation.
+- Cost insights and savings recommendations.
+- Mocked read-only billing/provider API class.
 - Runtime validation for malformed records.
-- Deterministic ranking and outreach bands.
 - Table and JSON output modes.
-- Tests for scoring, validation, and CLI behavior.
+- Tests for validation, mocked APIs, budgets, insights, and CLI behavior.
 
 ## Requirements
 
@@ -48,11 +50,18 @@ Print JSON:
 node dist/src/cli.js --json
 ```
 
-Limit output:
+Limit analysis to one synthetic provider:
 
 ```bash
-node dist/src/cli.js --limit 3
+node dist/src/cli.js --provider openai-demo
 ```
+
+Supported synthetic provider ids:
+
+- `openai-demo`
+- `anthropic-demo`
+- `google-demo`
+- `mistral-demo`
 
 ## Test
 
@@ -60,22 +69,19 @@ node dist/src/cli.js --limit 3
 npm test
 ```
 
-## How Scoring Works
+## How It Works
 
-The score combines synthetic stage, traction, founder experience, and focus signals. The bands are:
+The tool validates synthetic providers, usage records, and budgets. It then computes provider spend, evaluates budget thresholds, and generates simple recommendations such as provider concentration review, non-production spend guardrails, large-model routing opportunities, and low-utilization provider reviews.
 
-- `priority`: high outreach-planning score.
-- `watch`: promising but needs more context.
-- `research`: requires manual research before prioritization.
-
-The model is intentionally simple and transparent so it can be inspected, tested, and modified. It is not trained on private data and does not perform regulated decisioning.
+All pricing and spend values are synthetic examples. Do not treat any numbers in this repository as actual provider pricing or invoices.
 
 ## Project Structure
 
-- `PLAN.md`: Implementation plan created before the app/tool work.
-- `src/seed.ts`: Synthetic seed applications.
+- `PLAN.md`: Implementation plan for the Carrot Labs cost-management reimplementation.
+- `src/seed.ts`: Synthetic provider, usage, and budget data.
+- `src/mockProviderApi.ts`: Read-only mocked billing/provider API.
 - `src/validate.ts`: Data validation.
-- `src/score.ts`: Deterministic ranking logic.
+- `src/score.ts`: Spend summaries, budget alerts, and recommendations.
 - `src/report.ts`: Table and JSON renderers.
 - `src/cli.ts`: Command-line entry point.
 - `test/*.test.ts`: Node test runner coverage.

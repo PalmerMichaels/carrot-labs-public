@@ -1,14 +1,20 @@
-export { CLEAN_ROOM_DISCLAIMER } from "./disclaimer";
+export { CLEAN_ROOM_DISCLAIMER, NON_REGULATED_DISCLAIMER } from "./disclaimer";
+export { MockProviderBillingApi } from "./mockProviderApi";
 export { renderJson, renderTable } from "./report";
-export { rankApplications, scoreApplication } from "./score";
-export { syntheticApplications } from "./seed";
+export { buildCostReport, evaluateBudgets, generateInsights, summarizeProviderSpend } from "./score";
+export { syntheticBudgets, syntheticProviders, syntheticUsageRecords } from "./seed";
 export type {
-  FounderProfile,
-  OutreachBand,
-  RankedApplication,
-  Stage,
-  StartupApplication,
-  TractionSnapshot,
+  AlertSeverity,
+  BudgetAlert,
+  BudgetPolicy,
+  CostInsight,
+  CostReport,
+  ProviderAccount,
+  ProviderKey,
+  ProviderSpend,
+  RecommendationImpact,
+  UsageRecord,
+  UsageUnit,
   ValidationIssue
 } from "./types";
-export { assertValidApplications, validateApplication, validateApplications } from "./validate";
+export { assertValidDataset, validateBudget, validateDataset, validateProvider, validateUsageRecord } from "./validate";

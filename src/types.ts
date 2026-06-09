@@ -1,44 +1,74 @@
-export type Stage = "idea" | "prototype" | "launched" | "revenue";
+export type ProviderKey = "openai-demo" | "anthropic-demo" | "google-demo" | "mistral-demo";
 
-export type OutreachBand = "priority" | "watch" | "research";
+export type UsageUnit = "tokens" | "requests" | "images";
 
-export interface FounderProfile {
-  name: string;
-  role: string;
-  background: string;
-  yearsExperience: number;
+export type AlertSeverity = "info" | "warning" | "critical";
+
+export type RecommendationImpact = "low" | "medium" | "high";
+
+export interface ProviderAccount {
+  id: ProviderKey;
+  displayName: string;
+  accountLabel: string;
+  currency: "USD";
+  readOnly: true;
 }
 
-export interface TractionSnapshot {
-  monthlyRevenueUsd: number;
-  activeUsers: number;
-  growthRatePct: number;
-  pilots: number;
-  waitlist: number;
-}
-
-export interface StartupApplication {
+export interface UsageRecord {
   id: string;
-  name: string;
-  batch: "YC 2026";
-  problem: string;
-  customer: string;
-  stage: Stage;
-  founders: FounderProfile[];
-  traction: TractionSnapshot;
-  tags: string[];
-  submittedAt: string;
+  providerId: ProviderKey;
+  project: string;
+  model: string;
+  unit: UsageUnit;
+  quantity: number;
+  costUsd: number;
+  occurredAt: string;
+  environment: "production" | "staging" | "development";
+}
+
+export interface BudgetPolicy {
+  id: string;
+  providerId?: ProviderKey;
+  project?: string;
+  monthlyLimitUsd: number;
+  warningThresholdPct: number;
+  criticalThresholdPct: number;
+}
+
+export interface ProviderSpend {
+  providerId: ProviderKey;
+  displayName: string;
+  costUsd: number;
+  usageRecords: number;
+}
+
+export interface BudgetAlert {
+  budgetId: string;
+  scope: string;
+  spendUsd: number;
+  monthlyLimitUsd: number;
+  thresholdPct: number;
+  severity: AlertSeverity;
+  message: string;
+}
+
+export interface CostInsight {
+  id: string;
+  title: string;
+  detail: string;
+  impact: RecommendationImpact;
+  estimatedMonthlySavingsUsd: number;
+}
+
+export interface CostReport {
+  generatedAt: string;
+  totalSpendUsd: number;
+  providerSpend: ProviderSpend[];
+  budgetAlerts: BudgetAlert[];
+  insights: CostInsight[];
 }
 
 export interface ValidationIssue {
   path: string;
   message: string;
-}
-
-export interface RankedApplication {
-  application: StartupApplication;
-  score: number;
-  band: OutreachBand;
-  reasons: string[];
-  risks: string[];
 }

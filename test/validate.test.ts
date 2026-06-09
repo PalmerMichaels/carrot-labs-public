@@ -1,45 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { syntheticApplications } from "../src/seed";
-import type { FounderProfile, StartupApplication, TractionSnapshot } from "../src/types";
-import { validateApplication, validateApplications } from "../src/validate";
+import { syntheticBudgets, syntheticProviders, syntheticUsageRecords } from "../src/seed";
+import type { BudgetPolicy, UsageRecord } from "../src/types";
+import { validateBudget, validateDataset, validateUsageRecord } from "../src/validate";
 
-function cloneWithInvalidTraction(application: StartupApplication, traction: Partial<TractionSnapshot>): StartupApplication {
-  return {
-    ...application,
-    traction: {
-      ...application.traction,
-      ...traction
-    }
-  };
-}
-
-function cloneWithInvalidFounder(application: StartupApplication, founder: Partial<FounderProfile>): StartupApplication {
-  return {
-    ...application,
-    founders: [
-      {
-        ...application.founders[0],
-        ...founder
-      }
-    ]
-  };
-}
-
-test("bundled synthetic seed data is valid", () => {
-  assert.deepEqual(validateApplications(syntheticApplications), []);
+test("bundled synthetic cost-management data is valid", () => {
+  assert.deepEqual(validateDataset(syntheticProviders, syntheticUsageRecords, syntheticBudgets), []);
 });
 
-test("validateApplication rejects negative traction", () => {
-  const invalid = cloneWithInvalidTraction(syntheticApplications[0], { monthlyRevenueUsd: -1 });
-  const issues = validateApplication(invalid);
+test("validateUsageRecord rejects negative synthetic spend", () => {
+  const invalid: UsageRecord = { ...syntheticUsageRecords[0], costUsd: -1 };
+  const issues = validateUsageRecord(invalid);
 
-  assert.ok(issues.some((issue) => issue.path === "applications[0].traction.monthlyRevenueUsd"));
+  assert.ok(issues.some((issue) => issue.path === "usageRecords[0].costUsd"));
 });
 
-test("validateApplication rejects empty founder names", () => {
-  const invalid = cloneWithInvalidFounder(syntheticApplications[0], { name: "" });
-  const issues = validateApplication(invalid);
+test("validateUsageRecord rejects unsupported provider ids", () => {
+  const invalid = { ...syntheticUsageRecords[0], providerId: "real-provider" };
+  const issues = validateUsageRecord(invalid);
 
-  assert.ok(issues.some((issue) => issue.path === "applications[0].founders[0].name"));
+  assert.ok(issues.some((issue) => issue.path === "usageRecords[0].providerId"));
+});
+
+test("validateBudget requires critical threshold above warning threshold", () => {
+  const invalid: BudgetPolicy = {
+    ...syntheticBudgets[0],
+    warningThresholdPct: 90,
+    criticalThresholdPct: 80
+  };
+  const issues = validateBudget(invalid);
+
+  assert.ok(issues.some((issue) => issue.path === "budgets[0].criticalThresholdPct"));
 });

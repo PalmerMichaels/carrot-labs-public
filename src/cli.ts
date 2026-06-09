@@ -1,31 +1,32 @@
 #!/usr/bin/env node
 import { renderJson, renderTable } from "./report";
-import { rankApplications } from "./score";
-import { syntheticApplications } from "./seed";
+import { buildCostReport } from "./score";
+import { syntheticBudgets, syntheticProviders, syntheticUsageRecords } from "./seed";
 
 interface CliOptions {
   json: boolean;
-  limit: number;
+  provider?: string;
   help: boolean;
 }
 
 function usage(): string {
   return [
-    "Usage: yc2026-clean-room-ranker [--json] [--limit <count>]",
+    "Usage: carrot-labs-costs [--json] [--provider <provider-id>]",
     "",
-    "Ranks bundled synthetic YC 2026-style startup outreach records.",
+    "Analyzes synthetic AI provider usage, spend, budgets, alerts, and cost recommendations.",
     "",
     "Options:",
-    "  --json           Print machine-readable JSON instead of a table.",
-    "  --limit <count>  Limit displayed records. Defaults to all records.",
-    "  --help           Show this help text."
+    "  --json                    Print machine-readable JSON instead of a table.",
+    "  --provider <provider-id>  Limit synthetic usage to one provider id.",
+    "  --help                    Show this help text.",
+    "",
+    "Synthetic provider ids: openai-demo, anthropic-demo, google-demo, mistral-demo"
   ].join("\n");
 }
 
 function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     json: false,
-    limit: syntheticApplications.length,
     help: false
   };
 
@@ -42,15 +43,12 @@ function parseArgs(argv: string[]): CliOptions {
       continue;
     }
 
-    if (arg === "--limit") {
-      const rawLimit = argv[index + 1];
-      const parsedLimit = Number(rawLimit);
-
-      if (!rawLimit || !Number.isInteger(parsedLimit) || parsedLimit < 1) {
-        throw new Error("--limit must be followed by a positive integer");
+    if (arg === "--provider") {
+      const providerId = argv[index + 1];
+      if (!providerId) {
+        throw new Error("--provider must be followed by a synthetic provider id");
       }
-
-      options.limit = parsedLimit;
+      options.provider = providerId;
       index += 1;
       continue;
     }
@@ -68,8 +66,22 @@ export function runCli(argv = process.argv.slice(2)): string {
     return usage();
   }
 
-  const ranked = rankApplications(syntheticApplications).slice(0, options.limit);
-  return options.json ? renderJson(ranked) : renderTable(ranked);
+  const providers = options.provider
+    ? syntheticProviders.filter((provider) => provider.id === options.provider)
+    : syntheticProviders;
+  const usageRecords = options.provider
+    ? syntheticUsageRecords.filter((record) => record.providerId === options.provider)
+    : syntheticUsageRecords;
+  const budgets = options.provider
+    ? syntheticBudgets.filter((budget) => !budget.providerId || budget.providerId === options.provider)
+    : syntheticBudgets;
+
+  if (options.provider && providers.length === 0) {
+    throw new Error(`Unknown synthetic provider id: ${options.provider}`);
+  }
+
+  const report = buildCostReport(providers, usageRecords, budgets);
+  return options.json ? renderJson(report) : renderTable(report);
 }
 
 if (require.main === module) {

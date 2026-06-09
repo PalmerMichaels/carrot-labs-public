@@ -3,22 +3,22 @@ import test from "node:test";
 import { runCli } from "../src/cli";
 import { CLEAN_ROOM_DISCLAIMER } from "../src/disclaimer";
 
-test("runCli renders a table with disclaimer and limited rows", () => {
-  const output = runCli(["--limit", "2"]);
+test("runCli renders a cost table with disclaimer and provider spend", () => {
+  const output = runCli([]);
 
   assert.ok(output.includes(CLEAN_ROOM_DISCLAIMER));
-  assert.ok(output.includes("Rank"));
-  assert.ok(output.includes("HarborKit"));
+  assert.ok(output.includes("Provider Spend"));
+  assert.ok(output.includes("OpenAI Demo"));
+  assert.ok(output.includes("Budget Alerts"));
 });
 
-test("runCli renders valid JSON", () => {
-  const output = runCli(["--json", "--limit", "1"]);
-  const parsed = JSON.parse(output) as { disclaimer: string; rankedApplications: unknown[] };
+test("runCli renders valid JSON for one synthetic provider", () => {
+  const output = runCli(["--json", "--provider", "openai-demo"]);
+  const parsed = JSON.parse(output) as { report: { providerSpend: unknown[] } };
 
-  assert.equal(parsed.disclaimer, CLEAN_ROOM_DISCLAIMER);
-  assert.equal(parsed.rankedApplications.length, 1);
+  assert.equal(parsed.report.providerSpend.length, 1);
 });
 
-test("runCli validates limit arguments", () => {
-  assert.throws(() => runCli(["--limit", "0"]), /positive integer/);
+test("runCli rejects unknown provider ids", () => {
+  assert.throws(() => runCli(["--provider", "unknown-demo"]), /Unknown synthetic provider id/);
 });
